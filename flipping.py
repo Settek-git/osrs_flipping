@@ -101,7 +101,7 @@ def fetch_data(current_cash, input_volume_24h):
                     profit =  profit_margin * max_affordable_qty
 
                     # calculate the profit x volume for filtering purpose
-                    profit_volume = profit * volume_24h
+                    margin_volume = profit_margin * volume_24h
 
                     # filter on profit
                     if max_affordable_qty > 0:
@@ -112,14 +112,14 @@ def fetch_data(current_cash, input_volume_24h):
                             'Recommended Sell Price': latest_high,
                             'Profit': profit,
                             'Max Qty Affordable': max_affordable_qty,
-                            'Profit X Volume': profit_volume,
+                            'Margin X Volume': margin_volume,
                             'Session ID': session_id,
                         })
 
     # Sort the list by volume (descending) first, then by highest profit margin (24h)
     items_for_analysis = sorted(
         items_for_analysis, 
-        key=lambda x: (x['Profit X Volume']), 
+        key=lambda x: (x['Margin X Volume']), 
         reverse=True
     )
 
