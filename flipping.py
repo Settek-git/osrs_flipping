@@ -3,13 +3,14 @@ import requests
 import pandas as pd
 import os
 from random import randint
+from math import floor
 
 # Set the page configuration to use the wide layout
 st.set_page_config(layout="wide")
 
 # Hardcoded username and password for simplicity
-VALID_USERNAME = "lol"
-VALID_PASSWORD = "yolo"
+VALID_USERNAME = os.getenv("USERNAME") 
+VALID_PASSWORD = os.getenv("PASSWORD") 
 
 # File to store analysis history
 HISTORY_FILE = "analysis_history.csv"
@@ -40,7 +41,7 @@ def login():
         else:
             st.error("Invalid username or password")
 
-def fetch_data(current_cash, minimum_profit, input_volume_24h):
+def fetch_data(current_cash, input_volume_24h):
     # Define API endpoints
     base_url = "https://prices.runescape.wiki/api/v1/osrs"
     latest_endpoint = f"{base_url}/latest"
@@ -91,7 +92,7 @@ def fetch_data(current_cash, minimum_profit, input_volume_24h):
                 # filter on volume
                 if volume_24h > input_volume_24h:
 
-                    profit_margin = latest_high - latest_low
+                    profit_margin = latest_high - latest_low - floor(latest_high * 0.01)
 
                     # Calculate maximum affordable quantity based on current cash and item buy limit
                     max_affordable_qty = min(current_cash // latest_low, buy_limits[item_id])
@@ -99,28 +100,30 @@ def fetch_data(current_cash, minimum_profit, input_volume_24h):
                     # calculate the potential profit
                     profit =  profit_margin * max_affordable_qty
 
+                    # calculate the profit x volume for filtering purpose
+                    profit_volume = profit * volume_24h
+
                     # filter on profit
-                    if profit > minimum_profit:
-                        if max_affordable_qty > 0:
-                            # Store relevant information in the list
-                            items_for_analysis.append({
-                                'name': items.get(item_id, 'Unknown'),  # Ensure correct name matching
-                                'Recommended Buy Price': latest_low,
-                                'Recommended Sell Price': latest_high,
-                                'Profit': profit,
-                                'Max Qty Affordable': max_affordable_qty,
-                                'Volume (24h)': volume_24h,
-                                'Session ID': session_id,
-                            })
+                    if max_affordable_qty > 0:
+                        # Store relevant information in the list
+                        items_for_analysis.append({
+                            'name': items.get(item_id, 'Unknown'),  # Ensure correct name matching
+                            'Recommended Buy Price': latest_low,
+                            'Recommended Sell Price': latest_high,
+                            'Profit': profit,
+                            'Max Qty Affordable': max_affordable_qty,
+                            'Profit X Volume': profit_volume,
+                            'Session ID': session_id,
+                        })
 
     # Sort the list by volume (descending) first, then by highest profit margin (24h)
     items_for_analysis = sorted(
         items_for_analysis, 
-        key=lambda x: (x['Profit']), 
+        key=lambda x: (x['Profit X Volume']), 
         reverse=True
     )
 
-    return items_for_analysis[:10]  # Return top 10 items for flipping
+    return items_for_analysis[:50]  # Return top 10 items for flipping
 
 # Streamlit App
 def main():
@@ -144,14 +147,13 @@ def main():
         st.title("OSRS Quick Flip Analyzer")
         
         # Input widgets with formatted input
-        input_volume_24h = st.number_input("Enter the minimum 24h volume of the item to list:", min_value=1, value=2000000, step=1)
+        input_volume_24h = st.number_input("Enter the minimum 24h volume of the item to list:", min_value=1, value=90000, step=1)
         current_cash = st.number_input("Enter your available cash (in millions):", min_value=1.0, value=10.0, step=0.1, format="%.1f") * 1_000_000
-        minimum_profit = st.number_input("Enter minimum profit margin (in thousands):", min_value=10.0, value=100.0, step=10.0) * 1_000
 
         if st.button("Run Analysis"):
             with st.spinner("Fetching data and running analysis..."):
                 try:
-                    top_items = fetch_data(current_cash, minimum_profit, input_volume_24h)
+                    top_items = fetch_data(current_cash, input_volume_24h)
                     if top_items:
                         st.success("Analysis complete! Here are your top 10 items for quick flipping:")
                         
